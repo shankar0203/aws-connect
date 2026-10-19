@@ -2,22 +2,21 @@ pipeline {
     agent any
 
     parameters {
-        string(name: 'ACCOUNT_NAME',            defaultValue: 'npdcnct',        description: 'AWS CLI profile / account name')
-        string(name: 'REGION',                  defaultValue: 'us-east-1',      description: 'AWS region')
-        string(name: 'EXECUTION_ROLE_ARN',      defaultValue: '',               description: 'Lambda execution role ARN (kemper-connect-lambda-execution-role)')
-        string(name: 'TASK_ID',                 defaultValue: 'ACCNA-397',      description: 'Task/change number for reference')
-        string(name: 'TIMEOUT',                 defaultValue: '60',             description: 'Lambda timeout in seconds')
-        string(name: 'MEMORY',                  defaultValue: '128',            description: 'Lambda memory in MB')
-        choice(name: 'ENVIRONMENT',             choices: ['dev', 'prod'],       description: 'Deployment environment')
-        choice(name: 'ACTION',                  choices: ['DEPLOY', 'UPDATE_CODE', 'UPDATE_CONFIG', 'TEST'], description: 'Select action')
+        string(name: 'REGION',             defaultValue: 'us-east-1',      description: 'AWS region')
+        string(name: 'EXECUTION_ROLE_ARN', defaultValue: '',               description: 'Lambda execution role ARN')
+        string(name: 'TIMEOUT',            defaultValue: '60',             description: 'Lambda timeout in seconds')
+        string(name: 'MEMORY',             defaultValue: '128',            description: 'Lambda memory in MB')
+        string(name: 'TASK_ID',            defaultValue: 'ACCNA-397',      description: 'Task/change number for reference')
+        choice(name: 'ENVIRONMENT',        choices: ['dev', 'prod'],       description: 'Deployment environment')
+        choice(name: 'ACTION',             choices: ['DEPLOY', 'UPDATE_CODE', 'UPDATE_CONFIG', 'TEST'], description: 'Select action')
     }
 
     environment {
-        FUNCTION_CHECK_USER   = "connect-offboarding-checkuser-ACCNA397-${params.ENVIRONMENT}"
-        FUNCTION_DELETE_USER  = "connect-offboarding-deleteuser-ACCNA397-${params.ENVIRONMENT}"
-        RUNTIME               = "python3.12"
-        HANDLER_CHECK_USER    = "lambda_check_user.lambda_handler"
-        HANDLER_DELETE_USER   = "lambda_delete_user.lambda_handler"
+        FUNCTION_CHECK_USER  = "connect-offboarding-checkuser-ACCNA397-${params.ENVIRONMENT}"
+        FUNCTION_DELETE_USER = "connect-offboarding-deleteuser-ACCNA397-${params.ENVIRONMENT}"
+        RUNTIME              = "python3.12"
+        HANDLER_CHECK_USER   = "lambda_check_user.lambda_handler"
+        HANDLER_DELETE_USER  = "lambda_delete_user.lambda_handler"
     }
 
     stages {
@@ -25,7 +24,7 @@ pipeline {
         stage('Clone Repo') {
             steps {
                 dir('aws-connect-offboarding') {
-                    git url: 'git@git.kemperi.com:AccentureAutomation/aws-connect-offboarding.git',
+                    git url: 'https://github.com/shankar0203/aws-connect.git',
                         branch: 'master'
                 }
             }
@@ -38,7 +37,6 @@ pipeline {
                         error("EXECUTION_ROLE_ARN is required for DEPLOY action")
                     }
                     echo "===== Pipeline Parameters ====="
-                    echo "Account          : ${params.ACCOUNT_NAME}"
                     echo "Region           : ${params.REGION}"
                     echo "Environment      : ${params.ENVIRONMENT}"
                     echo "Action           : ${params.ACTION}"
@@ -57,7 +55,6 @@ pipeline {
                     sh """
                         echo "Packaging Lambda functions..."
 
-                        # Package check user Lambda
                         mkdir -p dist/check_user
                         cp lambda_check_user.py dist/check_user/
                         cd dist/check_user
@@ -65,7 +62,6 @@ pipeline {
                         cd ../..
                         echo "check_user package created"
 
-                        # Package delete user Lambda
                         mkdir -p dist/delete_user
                         cp lambda_delete_user.py dist/delete_user/
                         cd dist/delete_user
@@ -91,33 +87,30 @@ pipeline {
 
                             echo "Deploying: \$FUNC_NAME..."
 
-                            FUNC_EXISTS=\$(aws lambda get-function \\
-                                --function-name \$FUNC_NAME \\
-                                --region ${params.REGION} \\
-                                --profile ${params.ACCOUNT_NAME} \\
-                                --query 'Configuration.FunctionName' \\
+                            FUNC_EXISTS=\$(aws lambda get-function \
+                                --function-name \$FUNC_NAME \
+                                --region ${params.REGION} \
+                                --query 'Configuration.FunctionName' \
                                 --output text 2>/dev/null || echo "NOT_FOUND")
 
                             if [ "\$FUNC_EXISTS" == "NOT_FOUND" ]; then
                                 echo "Creating new Lambda: \$FUNC_NAME..."
-                                aws lambda create-function \\
-                                    --function-name \$FUNC_NAME \\
-                                    --runtime ${env.RUNTIME} \\
-                                    --handler \$HANDLER \\
-                                    --role ${params.EXECUTION_ROLE_ARN} \\
-                                    --zip-file fileb://\$ZIP_FILE \\
-                                    --timeout ${params.TIMEOUT} \\
-                                    --memory-size ${params.MEMORY} \\
-                                    --region ${params.REGION} \\
-                                    --profile ${params.ACCOUNT_NAME}
+                                aws lambda create-function \
+                                    --function-name \$FUNC_NAME \
+                                    --runtime ${env.RUNTIME} \
+                                    --handler \$HANDLER \
+                                    --role ${params.EXECUTION_ROLE_ARN} \
+                                    --zip-file fileb://\$ZIP_FILE \
+                                    --timeout ${params.TIMEOUT} \
+                                    --memory-size ${params.MEMORY} \
+                                    --region ${params.REGION}
                                 echo "\$FUNC_NAME created successfully"
                             else
                                 echo "Updating existing Lambda: \$FUNC_NAME..."
-                                aws lambda update-function-code \\
-                                    --function-name \$FUNC_NAME \\
-                                    --zip-file fileb://\$ZIP_FILE \\
-                                    --region ${params.REGION} \\
-                                    --profile ${params.ACCOUNT_NAME}
+                                aws lambda update-function-code \
+                                    --function-name \$FUNC_NAME \
+                                    --zip-file fileb://\$ZIP_FILE \
+                                    --region ${params.REGION}
                                 echo "\$FUNC_NAME updated successfully"
                             fi
                         }
@@ -134,20 +127,16 @@ pipeline {
             steps {
                 dir('aws-connect-offboarding') {
                     sh """
-                        echo "Updating Lambda code..."
-
-                        aws lambda update-function-code \\
-                            --function-name ${env.FUNCTION_CHECK_USER} \\
-                            --zip-file fileb://connect-offboarding-checkuser.zip \\
-                            --region ${params.REGION} \\
-                            --profile ${params.ACCOUNT_NAME}
+                        aws lambda update-function-code \
+                            --function-name ${env.FUNCTION_CHECK_USER} \
+                            --zip-file fileb://connect-offboarding-checkuser.zip \
+                            --region ${params.REGION}
                         echo "${env.FUNCTION_CHECK_USER} code updated"
 
-                        aws lambda update-function-code \\
-                            --function-name ${env.FUNCTION_DELETE_USER} \\
-                            --zip-file fileb://connect-offboarding-deleteuser.zip \\
-                            --region ${params.REGION} \\
-                            --profile ${params.ACCOUNT_NAME}
+                        aws lambda update-function-code \
+                            --function-name ${env.FUNCTION_DELETE_USER} \
+                            --zip-file fileb://connect-offboarding-deleteuser.zip \
+                            --region ${params.REGION}
                         echo "${env.FUNCTION_DELETE_USER} code updated"
                     """
                 }
@@ -159,22 +148,18 @@ pipeline {
             steps {
                 dir('aws-connect-offboarding') {
                     sh """
-                        echo "Updating Lambda configuration..."
-
-                        aws lambda update-function-configuration \\
-                            --function-name ${env.FUNCTION_CHECK_USER} \\
-                            --timeout ${params.TIMEOUT} \\
-                            --memory-size ${params.MEMORY} \\
-                            --region ${params.REGION} \\
-                            --profile ${params.ACCOUNT_NAME}
+                        aws lambda update-function-configuration \
+                            --function-name ${env.FUNCTION_CHECK_USER} \
+                            --timeout ${params.TIMEOUT} \
+                            --memory-size ${params.MEMORY} \
+                            --region ${params.REGION}
                         echo "${env.FUNCTION_CHECK_USER} config updated"
 
-                        aws lambda update-function-configuration \\
-                            --function-name ${env.FUNCTION_DELETE_USER} \\
-                            --timeout ${params.TIMEOUT} \\
-                            --memory-size ${params.MEMORY} \\
-                            --region ${params.REGION} \\
-                            --profile ${params.ACCOUNT_NAME}
+                        aws lambda update-function-configuration \
+                            --function-name ${env.FUNCTION_DELETE_USER} \
+                            --timeout ${params.TIMEOUT} \
+                            --memory-size ${params.MEMORY} \
+                            --region ${params.REGION}
                         echo "${env.FUNCTION_DELETE_USER} config updated"
                     """
                 }
@@ -187,23 +172,21 @@ pipeline {
                 dir('aws-connect-offboarding') {
                     sh """
                         echo "Testing check_user Lambda..."
-                        aws lambda invoke \\
-                            --function-name ${env.FUNCTION_CHECK_USER} \\
-                            --payload '{"employee_id":"TEST_USER","instance_id":"test-instance"}' \\
-                            --cli-binary-format raw-in-base64-out \\
-                            --region ${params.REGION} \\
-                            --profile ${params.ACCOUNT_NAME} \\
+                        aws lambda invoke \
+                            --function-name ${env.FUNCTION_CHECK_USER} \
+                            --payload '{"employee_id":"TEST_USER","instance_id":"test-instance"}' \
+                            --cli-binary-format raw-in-base64-out \
+                            --region ${params.REGION} \
                             test_check_response.json
                         echo "check_user response:"
                         cat test_check_response.json
 
                         echo "Testing delete_user Lambda..."
-                        aws lambda invoke \\
-                            --function-name ${env.FUNCTION_DELETE_USER} \\
-                            --payload '{"employee_id":"TEST_USER","agent_id":"test-agent-id","instance_id":"test-instance"}' \\
-                            --cli-binary-format raw-in-base64-out \\
-                            --region ${params.REGION} \\
-                            --profile ${params.ACCOUNT_NAME} \\
+                        aws lambda invoke \
+                            --function-name ${env.FUNCTION_DELETE_USER} \
+                            --payload '{"employee_id":"TEST_USER","agent_id":"test-agent-id","instance_id":"test-instance"}' \
+                            --cli-binary-format raw-in-base64-out \
+                            --region ${params.REGION} \
                             test_delete_response.json
                         echo "delete_user response:"
                         cat test_delete_response.json
@@ -217,20 +200,16 @@ pipeline {
             steps {
                 dir('aws-connect-offboarding') {
                     sh """
-                        echo "Verifying deployments..."
-
-                        aws lambda get-function \\
-                            --function-name ${env.FUNCTION_CHECK_USER} \\
-                            --region ${params.REGION} \\
-                            --profile ${params.ACCOUNT_NAME} \\
-                            --query 'Configuration.{Name:FunctionName,Runtime:Runtime,Handler:Handler,LastModified:LastModified}' \\
+                        aws lambda get-function \
+                            --function-name ${env.FUNCTION_CHECK_USER} \
+                            --region ${params.REGION} \
+                            --query 'Configuration.{Name:FunctionName,Runtime:Runtime,Handler:Handler,LastModified:LastModified}' \
                             --output table
 
-                        aws lambda get-function \\
-                            --function-name ${env.FUNCTION_DELETE_USER} \\
-                            --region ${params.REGION} \\
-                            --profile ${params.ACCOUNT_NAME} \\
-                            --query 'Configuration.{Name:FunctionName,Runtime:Runtime,Handler:Handler,LastModified:LastModified}' \\
+                        aws lambda get-function \
+                            --function-name ${env.FUNCTION_DELETE_USER} \
+                            --region ${params.REGION} \
+                            --query 'Configuration.{Name:FunctionName,Runtime:Runtime,Handler:Handler,LastModified:LastModified}' \
                             --output table
                     """
                 }
@@ -251,12 +230,10 @@ Action           : ${params.ACTION}
 Environment      : ${params.ENVIRONMENT}
 Check User Fn    : ${env.FUNCTION_CHECK_USER}
 Delete User Fn   : ${env.FUNCTION_DELETE_USER}
-Account          : ${params.ACCOUNT_NAME}
 Region           : ${params.REGION}
 Task ID          : ${params.TASK_ID}
 
-View Build:
-${env.BUILD_URL}
+View Build: ${env.BUILD_URL}
 
 -- Jenkins Pipeline
                 """
@@ -274,12 +251,10 @@ Action           : ${params.ACTION}
 Environment      : ${params.ENVIRONMENT}
 Check User Fn    : ${env.FUNCTION_CHECK_USER}
 Delete User Fn   : ${env.FUNCTION_DELETE_USER}
-Account          : ${params.ACCOUNT_NAME}
 Region           : ${params.REGION}
 Task ID          : ${params.TASK_ID}
 
-Check Console Logs:
-${env.BUILD_URL}console
+Check Console Logs: ${env.BUILD_URL}console
 
 -- Jenkins Pipeline
                 """
