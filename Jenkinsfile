@@ -1,5 +1,5 @@
 pipeline {
-    agent { label 'aws' }
+    agent any
 
     parameters {
         string(name: 'ACCOUNT_NAME',            defaultValue: 'npdcnct',        description: 'AWS CLI profile / account name')
