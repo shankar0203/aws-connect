@@ -25,7 +25,7 @@ pipeline {
             steps {
                 dir('aws-connect-offboarding') {
                     git url: 'https://github.com/shankar0203/aws-connect.git',
-                        branch: 'master'
+                        branch: 'main'
                 }
             }
         }
@@ -217,48 +217,4 @@ pipeline {
         }
     }
 
-    post {
-        success {
-            emailext(
-                to: "shankar.soundarpandi@accenture.com",
-                subject: "AWS Connect Lambda ${params.ACTION} SUCCESS — Build ${BUILD_NUMBER} — ${params.TASK_ID}",
-                body: """
-Lambda Deployment Successful
-
-Build Number     : ${BUILD_NUMBER}
-Action           : ${params.ACTION}
-Environment      : ${params.ENVIRONMENT}
-Check User Fn    : ${env.FUNCTION_CHECK_USER}
-Delete User Fn   : ${env.FUNCTION_DELETE_USER}
-Region           : ${params.REGION}
-Task ID          : ${params.TASK_ID}
-
-View Build: ${env.BUILD_URL}
-
--- Jenkins Pipeline
-                """
-            )
-        }
-        failure {
-            emailext(
-                to: "shankar.soundarpandi@accenture.com",
-                subject: "AWS Connect Lambda ${params.ACTION} FAILED — Build ${BUILD_NUMBER} — ${params.TASK_ID}",
-                body: """
-Lambda Deployment Failed
-
-Build Number     : ${BUILD_NUMBER}
-Action           : ${params.ACTION}
-Environment      : ${params.ENVIRONMENT}
-Check User Fn    : ${env.FUNCTION_CHECK_USER}
-Delete User Fn   : ${env.FUNCTION_DELETE_USER}
-Region           : ${params.REGION}
-Task ID          : ${params.TASK_ID}
-
-Check Console Logs: ${env.BUILD_URL}console
-
--- Jenkins Pipeline
-                """
-            )
-        }
-    }
 }
