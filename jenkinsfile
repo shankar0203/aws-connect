@@ -26,8 +26,7 @@ pipeline {
             steps {
                 dir('aws-connect-offboarding') {
                     git url: 'git@git.kemperi.com:AccentureAutomation/aws-connect-offboarding.git',
-                        branch: 'master',
-                        credentialsId: 'jenkins_gitlab'
+                        branch: 'master'
                 }
             }
         }
@@ -60,7 +59,7 @@ pipeline {
 
                         # Package check user Lambda
                         mkdir -p dist/check_user
-                        cp lambda/lambda_check_user.py dist/check_user/
+                        cp lambda_check_user.py dist/check_user/
                         cd dist/check_user
                         zip -r ../../connect-offboarding-checkuser.zip .
                         cd ../..
@@ -68,7 +67,7 @@ pipeline {
 
                         # Package delete user Lambda
                         mkdir -p dist/delete_user
-                        cp lambda/lambda_delete_user.py dist/delete_user/
+                        cp lambda_delete_user.py dist/delete_user/
                         cd dist/delete_user
                         zip -r ../../connect-offboarding-deleteuser.zip .
                         cd ../..
